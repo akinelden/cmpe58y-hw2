@@ -40,8 +40,8 @@ class Network:
         self.outputs = []
 
     def forward(self, x):
-        self.activations = [x.copy()]
-        self.outputs = [x.copy()]
+        self.activations.append(x.copy())
+        self.outputs.append(x.copy())
         for i in range(len(self.W)-1):
             x = x @ self.W[i] + self.b[i]
             self.activations.append(x.copy())
@@ -49,18 +49,23 @@ class Network:
             self.outputs.append(x.copy())
             # x = np.maximum(x @ self.W[i] + self.b[i], 0)
         x = x @ self.W[-1] + self.b[-1]
+        self.activations.append(x.copy())
+        self.outputs.append(x.copy())
         return x
 
-    def backward(self, error, batch_size):
-        self.gradW[-1] += (self.outputs[-1].T @ error) / batch_size
-        self.gradb[-1] += (1 * error) / batch_size
-        hidden_errors = [(1-self.outputs[-1]**2)*(error @ self.W[-1].T)]
-        for i in range(len(self.W)-2, 0, -1): # reverse iterate layers
-            self.gradW[i] += (self.outputs[i].T @ hidden_errors[0]) / batch_size
-            self.gradb[i] += (1 * hidden_errors[0]) / batch_size
-            hidden_errors.insert(0, (1-self.outputs[i]**2) * (hidden_errors[0] @ self.W[i].T))
-        self.gradW[0] += (self.outputs[0].T @ hidden_errors[0]) / batch_size
-        self.gradb[0] += (1 * hidden_errors[0]) / batch_size
+    def backward(self, prediction, target, batch_size):
+        d_layer_errors = [0 for i in range(len(self.W))]
+        d_layer_errors[-1] = 2 * (prediction - target)
+        self.gradW[-1] = self.outputs[-2].T @ d_layer_errors[-1]
+        self.gradb[-1] = d_layer_errors[-1] 
+        for i in range(-2, -len(self.W), -1): # reverse iterate hidden layers
+            d_layer_errors[i] = (1-self.outputs[i]**2)*(d_layer_errors[i+1] @ self.W[i+1].T)
+            self.gradW[i] = self.outputs[i-1].T @ d_layer_errors[i] 
+            self.gradb[i] = d_layer_errors[i] 
+        i-=1
+        d_layer_errors[i] = (d_layer_errors[i+1] @ self.W[i+1].T)
+        self.gradW[i] = (self.outputs[i-1].T @ d_layer_errors[i]) 
+        self.gradb[i] = (1 * d_layer_errors[i]) 
         # hidden_errors.insert(0, 1 * (hidden_errors[0] @ self.W[0].T))
         return
         raise NotImplementedError
@@ -100,14 +105,16 @@ class DQN:
         self.decay = decay
         self.scores = []
 
-    def train(self, n_iter, batch_size=16, target_update_steps=48, log = True):
+    def train(self, n_episode, batch_size=16, target_update_steps=48, log = True):
         score = 0
         episode = 0
         done = False
         observation = self.env.reset()
-        for i in range(n_iter):
-            o = self.training_network.forward(observation.reshape(1,-1))
-            action = np.argmax(o) if random.random() > self.epsilon else self.env.action_space.sample()
+        i = 0
+        while True:
+            i += 1
+            output = self.training_network.forward(observation.reshape(1,-1))
+            action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
             observation, reward, done, _info = self.env.step(action)
             score += reward
             if done:
@@ -118,20 +125,20 @@ class DQN:
                 observation = self.env.reset()
                 self.scores.append(score)
                 score = 0
+                self.epsilon = max(0.1, self.epsilon*self.decay)
+                if episode == n_episode:
+                    break
             else:
                 target = reward + self.gamma * np.max(self.target_network.forward(observation.reshape(1,-1)))
-            error = np.zeros((1,2))
-            error[0,action] = 0.5 * (o[0,action] - target)**2
-            self.training_network.backward(error, batch_size)
-            
-            self.epsilon = max(0.1, self.epsilon*self.decay)
+            target_arr = output.copy()
+            target_arr[0,action] = target
+            self.training_network.backward(output, target_arr, batch_size)
 
             if i % batch_size == 0:
                 self.training_network.update(self.learning_rate)
-                self.training_network.reset_gradients()
+                # self.training_network.reset_gradients()
             if i % target_update_steps == 0:
                 self.target_network.copy_weights_from(self.training_network)
-            
 
         avg_scores = np.mean(np.array(self.scores[len(self.scores) % 10:]).reshape(-1, 10), axis=1)
         fig, axs = plt.subplots(1, 2, figsize=(12,6))
@@ -140,3 +147,22 @@ class DQN:
         axs[1].plot(avg_scores)
         axs[1].set_title("10-Averaged Scores")
         plt.show()
+    
+    def run_visual(self, n_episode):
+        score = 0
+        episode = 0
+        done = False
+        observation = self.env.reset()
+        while episode < n_episode:
+            self.env.render()
+            output = self.training_network.forward(observation.reshape(1,-1))
+            action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
+            observation, reward, done, _info = self.env.step(action)
+            score += reward
+            if done:
+                episode+=1
+                print(f"Episode {episode} : {score}")
+                observation = self.env.reset()
+                self.scores.append(score)
+                score = 0
+                self.epsilon = max(0.1, self.epsilon*self.decay)
