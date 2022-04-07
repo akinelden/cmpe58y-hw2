@@ -95,7 +95,7 @@ class DQN:
     env : gym.Env
     scores : list[int]
 
-    def __init__(self, env, input_dim, hidden_dim, output_dim, num_layers, learning_rate=0.001, gamma=0.99, epsilon=1.0, decay=0.999, replay_memory_size=1000):
+    def __init__(self, env, input_dim, hidden_dim, output_dim, num_layers, learning_rate=0.0001, gamma=0.99, epsilon=1.0, decay=0.999, replay_memory_size=1000):
         self.env = env
         self.training_network = Network(input_dim, hidden_dim, output_dim, num_layers)
         self.target_network = Network(input_dim, hidden_dim, output_dim, num_layers)
