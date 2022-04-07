@@ -115,7 +115,7 @@ class DQN:
             i += 1
             output = self.training_network.forward(observation.reshape(1,-1))
             action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
-            observation, reward, done, _info = self.env.step(action)
+            new_observation, reward, done, _info = self.env.step(action)
             score += reward
             if done:
                 episode+=1
@@ -129,10 +129,12 @@ class DQN:
                 if episode == n_episode:
                     break
             else:
-                target = reward + self.gamma * np.max(self.target_network.forward(observation.reshape(1,-1)))
+                target = reward + self.gamma * np.max(self.target_network.forward(new_observation.reshape(1,-1)))
             target_arr = output.copy()
             target_arr[0,action] = target
             self.training_network.backward(output, target_arr, batch_size)
+
+            observation = new_observation
 
             if i % batch_size == 0:
                 self.training_network.update(self.learning_rate)
