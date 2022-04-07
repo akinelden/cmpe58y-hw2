@@ -41,8 +41,8 @@ class Network:
         self.outputs = []
 
     def forward(self, x):
-        self.activations.append(x.copy())
-        self.outputs.append(x.copy())
+        self.activations = [x.copy()]
+        self.outputs = [x.copy()]
         for i in range(len(self.W)-1):
             x = x @ self.W[i] + self.b[i]
             self.activations.append(x.copy())
@@ -68,9 +68,7 @@ class Network:
         d_layer_errors[i] = (d_layer_errors[i+1] @ self.W[i+1].T)
         self.gradW[i] = (self.outputs[i-1].T @ d_layer_errors[i]) / n_x 
         self.gradb[i] = (np.ones((1,n_x)) @ d_layer_errors[i]) / n_x 
-        # hidden_errors.insert(0, 1 * (hidden_errors[0] @ self.W[0].T))
         return
-        raise NotImplementedError
 
     def update(self, lr):
         for i in range(len(self.W)):
@@ -83,8 +81,8 @@ class Network:
             self.gradb[i] = np.zeros_like(self.b[i])
 
     def copy_weights_from(self, from_net):
-        self.W = from_net.W
-        self.b = from_net.b
+        self.W = from_net.W.copy()
+        self.b = from_net.b.copy()
 
     def __repr__(self):
         return "(" + ", ".join([str(x.shape[0]) for x in self.W]) + ", " + str(self.W[-1].shape[1]) + ")"
@@ -97,7 +95,7 @@ class DQN:
     env : gym.Env
     scores : list[int]
 
-    def __init__(self, env, input_dim, hidden_dim, output_dim, num_layers, learning_rate=0.0001, gamma=0.99, epsilon=1.0, decay=0.999, replay_memory_size=1000):
+    def __init__(self, env, input_dim, hidden_dim, output_dim, num_layers, learning_rate=0.001, gamma=0.99, epsilon=1.0, decay=0.999, replay_memory_size=1000):
         self.env = env
         self.training_network = Network(input_dim, hidden_dim, output_dim, num_layers)
         self.target_network = Network(input_dim, hidden_dim, output_dim, num_layers)
