@@ -109,14 +109,14 @@ class DQN:
 
     def train(self, n_episode, batch_size=4, target_update_steps=64, min_replay_memory=500, min_epsilon=0.1, log = True):
         episode = 0
+        iter = 0
         while episode < n_episode:
             episode += 1
             score = 0
             done = False
             observation = self.env.reset()
-            i = 0
             while not done:
-                i += 1
+                iter += 1
                 output = self.training_network.forward(observation.reshape(1,-1))
                 action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
                 new_observation, reward, done, _info = self.env.step(action)
@@ -143,10 +143,8 @@ class DQN:
                 self.training_network.backward(predictions, targets)
                 self.training_network.update(self.learning_rate)
 
-                if i % target_update_steps == 0:
+                if iter % target_update_steps == 0:
                     self.target_network.copy_weights_from(self.training_network)
-                
-
 
         avg_scores = np.mean(np.array(self.scores[len(self.scores) % 10:]).reshape(-1, 10), axis=1)
         fig, axs = plt.subplots(1, 2, figsize=(12,6))
