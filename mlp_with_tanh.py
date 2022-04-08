@@ -117,7 +117,7 @@ class DQN:
             observation = self.env.reset()
             while not done:
                 iter += 1
-                output = self.training_network.forward(observation.reshape(1,-1))
+                output = self.training_network.forward(observation)
                 action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
                 new_observation, reward, done, _info = self.env.step(action)
                 score += reward
@@ -133,13 +133,16 @@ class DQN:
                     continue
                 
                 # learning with mini batches
-                batch_indices = np.random.choice(len(self.replay_memory), batch_size, replace=False)
-                old_observations, actions, rewards, dones, new_observations = zip(*[self.replay_memory[ind] for ind in batch_indices])
-                target_values = [reward_ if done_ else reward_ + self.gamma * np.max(self.target_network.forward(new_obs_.reshape(1,-1))) for new_obs_,reward_,done_ in zip(new_observations, rewards, dones) ]
-                predictions = self.training_network.forward(np.array(old_observations))
+                old_observations, actions, rewards, dones, new_observations = zip(*random.sample(self.replay_memory, batch_size))
+                
+                q_news = np.max(self.target_network.forward(np.array(new_observations)), axis=1)
+                target_values = np.array(rewards) + self.gamma * (1-np.array(dones)) * q_news
+                # target_values = [reward_ if done_ else reward_ + self.gamma * q_new_ for reward_,done_,q_new_ in zip(rewards, dones, q_news) ]
 
+                predictions = self.training_network.forward(np.array(old_observations))
                 targets = predictions.copy()
-                for i, action in enumerate(actions) : targets[i, action] = target_values[i]
+                targets[np.arange(len(actions)), np.array(actions)] = target_values
+                # for i, action in enumerate(actions) : targets[i, action] = target_values[i]
                 self.training_network.backward(predictions, targets)
                 self.training_network.update(self.learning_rate)
 
@@ -161,7 +164,7 @@ class DQN:
         observation = self.env.reset()
         while episode < n_episode:
             self.env.render()
-            output = self.training_network.forward(observation.reshape(1,-1))
+            output = self.training_network.forward(observation)
             action = np.argmax(output) if random.random() > self.epsilon else self.env.action_space.sample()
             observation, reward, done, _info = self.env.step(action)
             score += reward
@@ -171,4 +174,3 @@ class DQN:
                 observation = self.env.reset()
                 self.scores.append(score)
                 score = 0
-                self.epsilon = max(0.1, self.epsilon*self.decay)
